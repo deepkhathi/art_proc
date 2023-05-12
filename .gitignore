@@ -161,3 +161,11 @@ cython_debug/
 
 test_data/
 test_results/
+.vscode/
+
+# filetypes
+jpg
+png
+pdf
+html
+log
