@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from scipy import ndimage, stats
+from skimage.color import gray2rgba
 from skimage.exposure import (adjust_gamma, adjust_log, adjust_sigmoid,
                               equalize_adapthist, equalize_hist,
                               rescale_intensity)
@@ -311,7 +312,8 @@ class BoundaryImage():
                                "outer", "subpixel"] = "inner",
         apply_post_filter: bool = False,
         resize_shape: Optional[Tuple[int, int]] = None,
-        invert_colors: bool = True
+        invert_colors: bool = True,
+        transparent_background: bool = True
     ) -> np.ndarray:
         r"""Run complete extraction pipeline with
         threshold -> boundary extraction -> resizing
@@ -327,15 +329,18 @@ class BoundaryImage():
             Boundary mode for `skimage.segmentation.find_boundaries`
         apply_post_filter : bool, default=False
             Apply binary closing with an 8-neighborhood (connectivity=2)
-        resize_shape: (int, int), optional
+        resize_shape : (int, int), optional
             Resize to target shape. If parent image is rotated relative to target shape,
             flip the target shape (e.g., width <> height)
-        invert_colors: bool, default=True
+        invert_colors : bool, default=True
             Invert binary image for contrast
+        transparent_background : bool, default=True
+            Convert to transparent background by converting to RGB(A)
 
         Returns
         -------
-        processed_boundary_image : numpy.ndarray, shape=(N, M)
+        processed_boundary_image : numpy.ndarray
+            If transparent_background, shape=(N, M, 4); otherwise, (N, M)
         """
         self.threshold(n_classes=n_classes)
         self._run_show()
@@ -364,6 +369,16 @@ class BoundaryImage():
                 boundary_image, conv_shape, anti_aliasing=False)
             self.logger.info(
                 f"Resized image from {b_shape} to {resized_bim.shape}")
-        if invert_colors:
-            return ~resized_bim
-        return resized_bim
+        processed_boundary_image = resized_bim.copy()
+        if transparent_background and invert_colors:
+            processed_boundary_image = gray2rgba(~resized_bim * 1.)
+            processed_boundary_image[:, :, -1] = resized_bim * 1.0
+            self.logger.info(
+                f"Invert color and convert to transparent background")
+        elif transparent_background:
+            processed_boundary_image = gray2rgba(resized_bim * 1.)
+            processed_boundary_image[:, :, -1] = ~resized_bim * 1.0
+            self.logger.info(f"Convert to transparent background")
+        elif invert_colors:
+            processed_boundary_image = ~resized_bim
+        return processed_boundary_image
