@@ -22,8 +22,9 @@ def configure_logging(
     filename : str, optional
         If None, logs to console
     filemode : str, default="w+"
+        See `logging.basicConfig`
     **kwargs
-        Additional configurations for logging.basicConfig
+        Additional configurations for `logging.basicConfig`
     """
     logging.basicConfig(
         level=level,

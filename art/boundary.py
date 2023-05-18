@@ -18,7 +18,7 @@ from skimage.segmentation import find_boundaries, watershed
 from skimage.transform import resize
 
 from ._base_image import BaseImage
-from .utils import display_image, init_logger
+from .utils import display_image
 
 
 class BoundaryImage(BaseImage):
@@ -248,9 +248,11 @@ class BoundaryImage(BaseImage):
             with warnings.catch_warnings():
                 pl_start = time.time()
                 warnings.simplefilter("ignore", FutureWarning)
-                local_max_map = peak_local_max(
+                max_coords = peak_local_max(
                     distance_map, min_distance=1,
-                    indices=None, labels=thresh_region)
+                    labels=thresh_region)
+                local_max_map = np.zeros_like(self.threshold_image, dtype=bool)
+                local_max_map[tuple(max_coords.T)] = True
                 self.logger.info(
                     f"Completed Local peak mapping on distance image in "
                     f"{time.time() - pl_start:.1f} seconds")
@@ -259,7 +261,7 @@ class BoundaryImage(BaseImage):
                                mask=thresh_region)
             # drop mode label (remove erroneous excess lines from transform)
             label_copy = labels.copy()
-            mode = stats.mode(labels.ravel(), keepdims=None)[0]
+            mode = stats.mode(labels.ravel(), axis=None, keepdims=False)[0]
             label_copy[labels != mode] = 1
             label_copy[labels == mode] = 0
             # get boundary
@@ -346,7 +348,8 @@ class BoundaryImage(BaseImage):
             resized_bim: np.ndarray = resize(
                 boundary_image, conv_shape, anti_aliasing=False)
             self.logger.info(
-                f"Resized image from {b_shape} to {resized_bim.shape}")
+                f"Resized image from {b_shape} to {resized_bim.shape}, "
+                f"leading to {resized_bim.dtype} from {boundary_image.dtype}")
         processed_boundary_image = resized_bim.copy()
         if transparent_background and invert_colors:
             processed_boundary_image = gray2rgba(~resized_bim * 1.)
@@ -355,8 +358,10 @@ class BoundaryImage(BaseImage):
                 f"Invert color and convert to transparent background")
         elif transparent_background:
             processed_boundary_image = gray2rgba(resized_bim * 1.)
-            processed_boundary_image[:, :, -1] = ~resized_bim * 1.0
+            processed_boundary_image[:, :, -1] =\
+                ~resized_bim * 1.0
             self.logger.info(f"Convert to transparent background")
         elif invert_colors:
             processed_boundary_image = ~resized_bim
+            self.logger.info(f"Invert color")
         return processed_boundary_image

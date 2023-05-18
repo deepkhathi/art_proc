@@ -51,7 +51,7 @@ class BaseImage():
                 f"Invalid shape {im_shape} must be (N, M, 3) "
                 f"or (N, M, 4) or (N, M)")
         if not self._orig_gray:
-            self.gray_image: np.ndarray = rgb2gray(self.gray_image)
+            self.gray_image: np.ndarray = rgb2gray(self.rgb_image)
 
     def _return_image(self, image: np.ndarray, return_flag: bool):
         return image if return_flag else None
