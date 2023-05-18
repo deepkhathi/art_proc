@@ -3,7 +3,6 @@ import time
 import warnings
 from typing import List, Literal, Optional, Tuple
 
-import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
@@ -18,10 +17,11 @@ from skimage.morphology import area_closing
 from skimage.segmentation import find_boundaries, watershed
 from skimage.transform import resize
 
+from ._base_image import BaseImage
 from .utils import display_image, init_logger
 
 
-class BoundaryImage():
+class BoundaryImage(BaseImage):
     r"""Generate boundary image by providing workhorse pipeline.
 
     Steps are:
@@ -82,24 +82,10 @@ class BoundaryImage():
         verbose: bool = False,
         **kwargs
     ):
-        self.rgb_image = rgb_image
-        self._orig_gray = False
-        if len(self.rgb_image.shape) == 3:
-            # check that there are only three channels
-            if self.rgb_image.shape[-1] != 3:
-                raise ValueError(
-                    f"Number of channels ({self.rgb_image.shape[-1]}) != 3")
-            self.gray_image: np.ndarray = cv2.cvtColor(
-                self.rgb_image, cv2.COLOR_RGB2GRAY)
-        elif len(self.rgb_image.shape) == 2:
-            self.gray_image = self.rgb_image.copy()
-            self._orig_gray = True
-        else:
-            raise ValueError(
-                f"Dimensions of rgb_image must be (N, M, 3) "
-                f"or (N, M); not {self.rgb_image.shape}")
-        self.logger = init_logger("BoundaryImage")
-        self.verbose = verbose
+        super().__init__(
+            rgb_image=rgb_image,
+            class_name="BoundaryImage",
+            verbose=verbose)
         self.photo_correction = photo_correction
         self.photo_corr_method = photo_corr_method
         self.photo_corr_gray_image: np.ndarray = self.gray_image.copy()
@@ -109,14 +95,6 @@ class BoundaryImage():
                 photo_corr_method=photo_corr_method,
                 **kwargs)
             self.verbose = verbose  # revert
-
-    def _return_image(self, image: np.ndarray, return_flag: bool):
-        return image if return_flag else None
-
-    def _run_show(self) -> None:
-        if self.verbose:
-            plt.show()
-        plt.close()
 
     def photo_correct(
         self,
@@ -219,8 +197,8 @@ class BoundaryImage():
         if self.verbose:
             fig, (ax0, ax1, ax2) = plt.subplots(ncols=3, figsize=(10, 5))
             display_image(self.rgb_image, cmap=self._orig_gray, ax=ax0)
-            display_image(self.photo_corr_gray_image, cmap=True, ax=ax1)
-            display_image(self.threshold_image, cmap=True, ax=ax2)
+            display_image(self.photo_corr_gray_image, cmap="gray", ax=ax1)
+            display_image(self.threshold_image, cmap="gray", ax=ax2)
         self.logger.info(
             f"Completed Otsu thresholding with n_classes = {n_classes}")
         return (self._return_image(self.threshold_image, return_image), fig)
