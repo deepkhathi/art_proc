@@ -1,7 +1,6 @@
 # GUI (equivalent to argparse) using GooeyParser
 
 import os
-import sys
 from typing import Tuple
 
 import numpy as np
@@ -9,9 +8,8 @@ from gooey import Gooey, GooeyParser
 from matplotlib.pyplot import imsave
 from skimage.io import imread
 
-sys.path.append(os.getcwd())  # noqa
-from art.boundary import BoundaryImage  # noqa
-from art.utils import display_image, init_logger  # noqa
+from art.boundary import BoundaryImage
+from art.utils import init_logger
 
 
 class GUI():
@@ -65,13 +63,12 @@ class GUI():
         self.transp_bg: bool = self.args.transp_bg
         self.invert: bool = self.args.invert
         self.apply_post: bool = self.args.post_filter
-        self.resolution: int = self.args.resolution
+        self.resolution: int = self.args.resolution if self.args.resolution > 50 else 96
         self.resize_settings: Tuple[int, int] = (
             self.args.width * self.resolution,
             self.args.height * self.resolution)
         if self.args.width <= 0 or self.args.height <= 0:
             self.resize_settings = None
-        self.logger.info(self.args)
 
     def run(self):
         boundary_image = self.boundary_handler.run_pipeline(
@@ -80,16 +77,15 @@ class GUI():
             resize_shape=self.resize_settings,
             invert_colors=self.invert,
             transparent_background=self.transp_bg)
-        # display_image(boundary_image)
-        # self.boundary_handler._run_show()
         fname = os.path.basename(self.filename.rsplit('.', 1)[0])
         output_filename = f"{fname}_boundary_mclass_{self.n_classes}"
         if self.resize_settings is not None:
             output_filename += f"__resized"
         output_loc = os.path.join(
             self.output_dir, f"{output_filename}.{self.output_ftype.lower()}")
-        imsave(output_loc, boundary_image, cmap="gray")
-        self.logger.info(f"Boundary image saved to {output_loc}")
+        imsave(output_loc, boundary_image, cmap="gray", dpi=self.resolution)
+        self.logger.info(
+            f"Boundary image saved to {output_loc} with dpi={self.resolution}")
         return None
 
 
@@ -167,7 +163,3 @@ def main():
     gui_manager = GUI(parser().parse_args())
     gui_manager.run()
     return None
-
-
-if __name__ == "__main__":
-    main()

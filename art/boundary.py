@@ -346,10 +346,9 @@ class BoundaryImage(BaseImage):
                     "NOTE: flipping target shape (swap width and height) due to scaling mismatch; "
                     f"new target shape: {conv_shape} (scaling factor = {nsc_fac:.2f})")
             resized_bim: np.ndarray = resize(
-                boundary_image, conv_shape, anti_aliasing=False)
+                boundary_image, conv_shape, anti_aliasing=False).astype(bool)
             self.logger.info(
-                f"Resized image from {b_shape} to {resized_bim.shape}, "
-                f"leading to {resized_bim.dtype} from {boundary_image.dtype}")
+                f"Resized image from {b_shape} to {resized_bim.shape}")
         processed_boundary_image = resized_bim.copy()
         if transparent_background and invert_colors:
             processed_boundary_image = gray2rgba(~resized_bim * 1.)
