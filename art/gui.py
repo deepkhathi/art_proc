@@ -1,7 +1,7 @@
 # GUI (equivalent to argparse) using GooeyParser
 
 import os
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
 from gooey import Gooey, GooeyParser
@@ -35,23 +35,27 @@ class GUI():
             "CLAHE": "clahe",
             "Histogram Equalization": "histeq",
             "Contrast Stretching": "contrast_stretch"}
-        self.logger = init_logger("DefaultGUI")
+        self.logger = init_logger("OutlineExtractor")
         self.args = args
         self.parse_args()
         self.load_image()
-        self.boundary_handler = BoundaryImage(
-            self.rgb_image,
-            photo_correction=self.is_photo,
-            photo_corr_method=self.exposure_algo)
+        self.boundary_handlers = [
+            BoundaryImage(rgb_image,
+                          photo_correction=self.is_photo,
+                          photo_corr_method=self.exposure_algo)
+            for rgb_image in self.rgb_images
+        ]
 
     def load_image(self):
         r"""Load RGB(A) image"""
-        self.rgb_image: np.ndarray = imread(self.filename)
+        self.rgb_images: List[np.ndarray] = [
+            imread(fname) for fname in self.files]
 
     def parse_args(self) -> None:
         r"""Parse and save `args` contents"""
         # defaults
-        self.filename: str = self.args.filename
+        self.files: List[str] = self.args.filename
+        # self.filename: str = self.args.filename
         self.output_dir: str = self.args.output_dir
         # image settings
         self.is_photo: bool = self.args.is_photo
@@ -71,32 +75,45 @@ class GUI():
             self.resize_settings = None
 
     def run(self):
-        boundary_image = self.boundary_handler.run_pipeline(
-            n_classes=self.n_classes,
-            apply_post_filter=self.apply_post,
-            resize_shape=self.resize_settings,
-            invert_colors=self.invert,
-            transparent_background=self.transp_bg)
-        fname = os.path.basename(self.filename.rsplit('.', 1)[0])
-        output_filename = f"{fname}_boundary_mclass_{self.n_classes}"
-        if self.resize_settings is not None:
-            output_filename += f"__resized"
-        output_loc = os.path.join(
-            self.output_dir, f"{output_filename}.{self.output_ftype.lower()}")
-        imsave(output_loc, boundary_image, cmap="gray", dpi=self.resolution)
-        self.logger.info(
-            f"Boundary image saved to {output_loc} with dpi={self.resolution}")
+        for k, boundary_handler in enumerate(self.boundary_handlers):
+            self.logger.info(
+                f"Starting {os.path.basename(self.files[k])} ("
+                f"{k + 1} / {len(self.boundary_handlers)})")
+            boundary_image = boundary_handler.run_pipeline(
+                n_classes=self.n_classes,
+                apply_post_filter=self.apply_post,
+                resize_shape=self.resize_settings,
+                invert_colors=self.invert,
+                transparent_background=self.transp_bg)
+            fname = os.path.basename(self.files[k].rsplit('.', 1)[0])
+            output_filename = f"{fname}_boundary_mclass_{self.n_classes}"
+            if self.resize_settings is not None:
+                output_filename += f"__resized"
+            output_loc = os.path.join(
+                self.output_dir, f"{output_filename}.{self.output_ftype.lower()}")
+            imsave(output_loc, boundary_image,
+                   cmap="gray", dpi=self.resolution)
+            self.logger.info(
+                f"Boundary image saved to {output_loc} with dpi={self.resolution}")
         return None
+
+
+def _dir_present(x: str):
+    if x is None or len(x) == 0:
+        raise TypeError(f"This field is required")
+    return x
 
 
 def parser() -> GooeyParser:
     r"""GUI parser with inputs similar to ArgumentParser"""
     parser = GooeyParser()
-    step1 = parser.add_argument_group("1. Select File and Output Location")
-    step1.add_argument("filename", help="Image to process", metavar="Filename",
-                       widget="FileChooser")
-    step1.add_argument("output_dir", metavar="Output Directory",
-                       widget="DirChooser")
+    step1 = parser.add_argument_group("1. Select File(s) and Output Location")
+    step1.add_argument("filename", help="Select image(s) to process", metavar="Files",
+                       widget="MultiFileChooser", nargs="+")
+    step1.add_argument("--output_dir", metavar="Output Directory",
+                       widget="DirChooser",
+                       required=True,
+                       type=_dir_present)
     im_settings = parser.add_argument_group(
         "2. Input Image Settings",
         "Specify the input image settings (photo, exposure correction method)")
@@ -130,8 +147,8 @@ def parser() -> GooeyParser:
                               action="store_true", widget="CheckBox")
     out_settings.add_argument("--invert", metavar="Invert output",
                               help="Invert black/white image",
-                              widget="CheckBox", default=False,
-                              action="store_true")
+                              widget="CheckBox",
+                              action="store_true", default=True)
     out_settings.add_argument(
         "--post_filter", metavar="Apply postprocessing filter",
         help="This is to remove small noise and extraneous lines ("
@@ -148,7 +165,7 @@ def parser() -> GooeyParser:
         action="store", default=0, type=float)
     resize_settings.add_argument(
         "--resolution", metavar="Pixel Resolution (ppi)",
-        help="PPI (Default: 96); Tune output resolution here",
+        help="Set output resolution (Default: 96 ppi)",
         action="store", default=96, type=int)
     return parser
 
@@ -157,9 +174,9 @@ def parser() -> GooeyParser:
     program_name="Outline Extraction",
     program_description=("Pipeline for extracting image outlines "
                          "from photos and other graphics"),
-    navigation="tabbed"
+    default_size=(700, 600)
 )
-def main():
+def gooey_gui():
     gui_manager = GUI(parser().parse_args())
     gui_manager.run()
     return None
